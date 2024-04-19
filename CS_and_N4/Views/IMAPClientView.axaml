@@ -1,0 +1,17 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:CS_and_N4.ViewModels"
+			 mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="CS_and_N4.Views.IMAPClientView"
+			 x:DataType="vm:IMAPClientViewModel">
+	<Grid>
+		<TextBox>
+			k
+		</TextBox>
+		<Button Command="{Binding QuitCommand}">
+			quit
+		</Button>
+	</Grid>
+</UserControl>

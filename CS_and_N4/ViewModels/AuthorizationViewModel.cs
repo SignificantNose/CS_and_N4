@@ -1,8 +1,9 @@
 ﻿using Avalonia.Threading;
-using CommunityToolkit.Mvvm.ComponentModel;
 using ReactiveUI;
+using ReactiveUI.Fody.Helpers;
 using System;
-using System.Diagnostics;
+using System.ComponentModel;
+using System.Net.Sockets;
 using System.Reactive;
 
 namespace CS_and_N4.ViewModels
@@ -17,11 +18,37 @@ namespace CS_and_N4.ViewModels
         // upd: I need to have the properties for these values: Authenticate button
         // must be enabled when these values are not empty.
         // this is easily modifiable to [ObservableProperty] just in case
-        private string _email;
-        private string _password;
-        private bool _isAuthAllowed;
-        private bool _useEncryption;
+        //
+        // upd: a similar approach in ReactiveUI is to use fody to 
+        // make a [Reactive] attribute to avoid boilerplate code
+
+        [Reactive]
+        public string Email { get; set; }
+        [Reactive]
+        public string Password { get; set; }
+        [Reactive]
+        public bool IsAuthAllowed { get; set; }
+        [Reactive]
+        public bool UseEncryption { get; set; }
+
+        [Reactive]
+        public Socket? ConnectionSocket { get; set; }
+
+
         private string _errorText;
+        public string ErrorText
+        {
+            get => _errorText;
+            set
+            {
+                _errorClearTimer.Stop();
+                if (!string.IsNullOrEmpty(value))
+                {
+                    _errorClearTimer.Start();
+                }
+                this.RaiseAndSetIfChanged(ref _errorText, value);
+            }
+        }
 
         public ReactiveCommand<Unit, Unit> AuthenticateUser { get; }
 
@@ -38,7 +65,7 @@ namespace CS_and_N4.ViewModels
             IsAuthAllowed = true;
             UseEncryption = true;
             ErrorText = string.Empty;
-
+            ConnectionSocket = null;
 
             IObservable<bool> btnEnabled = this.WhenAnyValue(
                 x => x.Email, x => x.Password, x => x.IsAuthAllowed,
@@ -50,8 +77,8 @@ namespace CS_and_N4.ViewModels
                     // disable the login button 
                     IsAuthAllowed = false;
                     // try to connect 
+                    ConnectionSocket = new Socket(SocketType.Dgram, ProtocolType.Udp);
                     // try to authenticate
-                    // switch the view
                     ErrorText = "ERROR: NOT IMPLEMENTED";
 
                     // enable the buttons
@@ -64,36 +91,6 @@ namespace CS_and_N4.ViewModels
         private void ClearError(object? sender, EventArgs e)
         {
             ErrorText = string.Empty;
-        }
-
-        public string Email { 
-            get=> _email; 
-            set => this.RaiseAndSetIfChanged(ref _email, value); 
-        }
-
-        public string Password { 
-            get => _password; 
-            set => this.RaiseAndSetIfChanged(ref _password, value); 
-        }
-        public bool IsAuthAllowed
-        {
-            get => _isAuthAllowed;
-            set => this.RaiseAndSetIfChanged(ref _isAuthAllowed, value);
-        }
-        public bool UseEncryption
-        {
-            get => _useEncryption;
-            set => this.RaiseAndSetIfChanged(ref _useEncryption, value);
-        }
-        public string ErrorText {
-            get => _errorText;
-            set {
-                _errorClearTimer.Stop();
-                if (!string.IsNullOrEmpty(value)) {
-                    _errorClearTimer.Start();
-                }
-                this.RaiseAndSetIfChanged(ref _errorText, value);
-            }
         }
     }
 }

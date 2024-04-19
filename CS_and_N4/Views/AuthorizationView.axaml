@@ -5,7 +5,8 @@
              xmlns:vm="using:CS_and_N4.ViewModels"
 			 mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="CS_and_N4.Views.AuthorizationView"
-			 x:DataType="vm:AuthorizationViewModel">
+			 x:DataType="vm:AuthorizationViewModel"
+			 x:CompileBindings="False">
 	<DockPanel Margin="10">
 		<!--Top-->
 		<TextBlock Text="Authorize"
