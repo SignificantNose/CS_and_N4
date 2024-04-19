@@ -1,0 +1,49 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:CS_and_N4.ViewModels"
+			 mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="CS_and_N4.Views.AuthorizationView"
+			 x:DataType="vm:AuthorizationViewModel">
+	<DockPanel Margin="10">
+		<!--Top-->
+		<TextBlock Text="Authorize"
+				   DockPanel.Dock="Top"
+				   HorizontalAlignment="Center"
+				   VerticalAlignment="Center"
+				   
+				   FontSize="26"
+				   FontWeight="Bold"/>
+		
+		<!--BOTTOM-->
+		<StackPanel DockPanel.Dock="Bottom" Spacing="10">			
+			<TextBlock HorizontalAlignment="Center"
+					   Foreground="Red"
+					   FontWeight="Bold"
+					   FontSize="20"
+					   Text="{Binding ErrorText}"/>
+			<Button Content="LOGIN"
+					HorizontalAlignment="Center"
+					FontSize="20"
+					FontWeight="Light"
+					Command="{Binding AuthenticateUser}"/>
+		</StackPanel>
+
+		<!--CONTENT-->
+		<StackPanel Spacing="10" MaxWidth="400" VerticalAlignment="Center">
+			<TextBox Padding="10" Margin="5" Height="50" VerticalContentAlignment="Center"
+					 Watermark="E-mail" AcceptsReturn="False"
+					 FontSize="16" MaxLines="1"
+					 Text="{Binding Email}"/>
+			<TextBox Padding="10" Margin="5" Height="50" VerticalContentAlignment="Center"
+					 Watermark="Password" AcceptsReturn="False"
+					 FontSize="16" MaxLines="1" PasswordChar="*"
+					 Text="{Binding Password}"/>
+			<CheckBox Content="Use SSL/TLS encrypted channel"
+					  IsChecked="{Binding UseEncryption}"/>
+		</StackPanel>
+
+		
+	</DockPanel>
+</UserControl>
