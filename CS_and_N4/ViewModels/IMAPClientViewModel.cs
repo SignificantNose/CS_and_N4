@@ -12,8 +12,9 @@ namespace CS_and_N4.ViewModels
 
         public IMAPClientViewModel(IMAPClient client) {
             QuitCommand = ReactiveCommand.Create(() => 
-            { 
+            {
                 // socket.close or something like that
+                client.QuitSessionAsync();
             }
             );
         }

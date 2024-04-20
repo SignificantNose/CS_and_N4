@@ -7,11 +7,61 @@
              x:Class="CS_and_N4.Views.IMAPClientView"
 			 x:DataType="vm:IMAPClientViewModel">
 	<Grid>
-		<TextBox>
-			k
-		</TextBox>
-		<Button Command="{Binding QuitCommand}">
-			quit
-		</Button>
+		<Grid.ColumnDefinitions>
+			<ColumnDefinition Width="*"/>
+			<ColumnDefinition Width="*"/>
+			<ColumnDefinition Width="3*"/>
+		</Grid.ColumnDefinitions>
+		
+		<!-- LOG ZONE -->
+		<Grid Grid.Column="0">
+			<Grid.RowDefinitions>
+				<RowDefinition Height="Auto"/>
+				<RowDefinition Height="*"/>
+				<RowDefinition Height="Auto"/>
+			</Grid.RowDefinitions>
+			
+			<Button Grid.Row="0" Content="Quit" 
+					HorizontalAlignment="Stretch"
+					HorizontalContentAlignment="Center"
+					Command="{Binding QuitCommand}"/>
+			<ListBox Grid.Row="1">
+				<ListBoxItem>
+					<TextBox></TextBox>
+				</ListBoxItem>				
+				<ListBoxItem>
+					<TextBox></TextBox>
+				</ListBoxItem>				
+				<ListBoxItem>
+					<TextBox></TextBox>
+				</ListBoxItem>
+			</ListBox>
+			<TextBox Grid.Row="2" AcceptsReturn="True"/>
+		</Grid>
+		
+		<!-- MAIL ZONE -->
+		<StackPanel Grid.Column="1">
+			<!--Didn't get the desired result
+				neither with DockPanel,
+				nor with StackPanel-->
+			<Grid>
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="*"/>
+					<ColumnDefinition Width="Auto"/>
+				</Grid.ColumnDefinitions>
+				<ComboBox Grid.Column="0" HorizontalAlignment="Stretch"/>
+				<Button Grid.Column="1" Content="Refresh"/>
+			</Grid>
+
+			<ListBox>
+				<ListBoxItem>ads</ListBoxItem>
+				<ListBoxItem>ads</ListBoxItem>
+				<ListBoxItem>ads</ListBoxItem>
+			</ListBox>
+		</StackPanel>
+
+		<!-- DISPLAY CONTENT ZONE -->
+		<TextBox Grid.Column="2"/>
+		
 	</Grid>
 </UserControl>

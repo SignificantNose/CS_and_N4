@@ -7,8 +7,11 @@ using System.Threading.Tasks;
 
 namespace CS_and_N4.ViewModels
 {
-    public abstract class ProtocolViewModelBase : ViewModelBase
+    public abstract class MailClientViewModelBase : ViewModelBase
     {
         public ClientBase protocol;
+        // log
+        // mail list
+        // cached emails
     }
 }
