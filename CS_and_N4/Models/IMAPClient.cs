@@ -26,7 +26,7 @@ namespace CS_and_N4.Models
         // (to avoid making 2 method calls)      
         // important note: the last line will have a status. the validity must
         // be checked by the status line!!
-        protected async Task<(string[], string)> SmalltalkAsync(string query) {
+        public async Task<(string[], string)> SmalltalkAsync(string query) {
             if (reader == null || writer == null) return ([], "");
             string tag = $"A{tagCounter}";
             await writer.WriteAsync($"{tag} {query}\r\n");
@@ -79,6 +79,7 @@ namespace CS_and_N4.Models
             return result;
         }
 
+
         public async Task QuitSessionAsync() {
             await SmalltalkAsync("CLOSE");
             await SmalltalkAsync("LOGOUT");
@@ -89,7 +90,7 @@ namespace CS_and_N4.Models
 
 
 
-        protected async Task<string?> SendMessageAsync(string msg)
+        public async Task<string?> SendMessageAsync(string msg)
         {
             if (writer == null) return null;
 
@@ -100,7 +101,7 @@ namespace CS_and_N4.Models
             return tag;
         }
 
-        protected async Task<string[]> ReceiveResponseAsync(string tag)
+        public async Task<string[]> ReceiveResponseAsync(string tag)
         {
             if (reader == null) return [];
 

@@ -6,6 +6,31 @@
 			 mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="CS_and_N4.Views.IMAPClientView"
 			 x:DataType="vm:IMAPClientViewModel">
+
+	<UserControl.Resources>
+		<DataTemplate x:Key="MailBoxTemplate" DataType="vm:MailBox">
+			<TextBlock>
+				<Run Text="{Binding Name}"/>
+				<Run Text=" ("/>
+				<Run Text="{Binding altName}"/>
+				<Run Text=")"/>
+			</TextBlock>
+		</DataTemplate>
+		
+		<DataTemplate x:Key="DialogueTemplate" DataType="vm:DialogueStruct">
+			<StackPanel>
+				<TextBlock>
+					<Run Text="Q:"/>
+					<Run Text="{Binding Query}"/>
+				</TextBlock>
+				
+				<TextBlock>
+					<Run Text="R:"/>
+					<Run Text="{Binding Response}"/>
+				</TextBlock>
+			</StackPanel>
+		</DataTemplate>
+	</UserControl.Resources>
 	<Grid>
 		<Grid.ColumnDefinitions>
 			<ColumnDefinition Width="*"/>
@@ -25,16 +50,9 @@
 					HorizontalAlignment="Stretch"
 					HorizontalContentAlignment="Center"
 					Command="{Binding QuitCommand}"/>
-			<ListBox Grid.Row="1">
-				<ListBoxItem>
-					<TextBox></TextBox>
-				</ListBoxItem>				
-				<ListBoxItem>
-					<TextBox></TextBox>
-				</ListBoxItem>				
-				<ListBoxItem>
-					<TextBox></TextBox>
-				</ListBoxItem>
+			<ListBox Grid.Row="1" ItemsSource="{Binding Log}"
+					 ItemTemplate="{StaticResource DialogueTemplate}">
+				
 			</ListBox>
 			<TextBox Grid.Row="2" AcceptsReturn="True"/>
 		</Grid>
@@ -49,7 +67,10 @@
 					<ColumnDefinition Width="*"/>
 					<ColumnDefinition Width="Auto"/>
 				</Grid.ColumnDefinitions>
-				<ComboBox Grid.Column="0" HorizontalAlignment="Stretch"/>
+				<ComboBox Grid.Column="0" HorizontalAlignment="Stretch"
+						  ItemsSource="{Binding MailBoxes}"
+						  ItemTemplate="{StaticResource MailBoxTemplate}">
+				</ComboBox>
 				<Button Grid.Column="1" Content="Refresh"/>
 			</Grid>
 
@@ -61,7 +82,8 @@
 		</StackPanel>
 
 		<!-- DISPLAY CONTENT ZONE -->
-		<TextBox Grid.Column="2"/>
+		<TextBox Grid.Column="2" 
+				 Text="{Binding CurrentContent}"/>
 		
 	</Grid>
 </UserControl>
