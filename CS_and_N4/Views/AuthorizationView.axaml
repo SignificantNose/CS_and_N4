@@ -3,11 +3,28 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:CS_and_N4.ViewModels"
+			 xmlns:model="using:CS_and_N4.Models"
 			 mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="CS_and_N4.Views.AuthorizationView"
 			 x:DataType="vm:AuthorizationViewModel"
 			 x:CompileBindings="False">
+<!-- <UserControl.Resources>
+		<DataTemplate x:Key="My.DataTemplates.Protocol"  DataType="model:ProtocolBase">
+			
+		</DataTemplate>
+	</UserControl.Resources>
+	-->
+
+	<UserControl.Resources>
+		<DataTemplate x:Key="My.DataTemplates.Protocol" DataType="model:ClientCreator">
+			<TextBlock Text="{Binding Display}"/>
+		</DataTemplate>
+	</UserControl.Resources>
+	
 	<DockPanel Margin="10">
+
+		
+		
 		<!--Top-->
 		<TextBlock Text="Authorize"
 				   DockPanel.Dock="Top"
@@ -32,18 +49,46 @@
 		</StackPanel>
 
 		<!--CONTENT-->
-		<StackPanel Spacing="10" MaxWidth="400" VerticalAlignment="Center">
-			<TextBox Padding="10" Margin="5" Height="50" VerticalContentAlignment="Center"
-					 Watermark="E-mail" AcceptsReturn="False"
-					 FontSize="16" MaxLines="1"
-					 Text="{Binding Email}"/>
-			<TextBox Padding="10" Margin="5" Height="50" VerticalContentAlignment="Center"
-					 Watermark="Password" AcceptsReturn="False"
-					 FontSize="16" MaxLines="1" PasswordChar="*"
-					 Text="{Binding Password}"/>
-			<CheckBox Content="Use SSL/TLS encrypted channel"
-					  IsChecked="{Binding UseEncryption}"/>
-		</StackPanel>
+		<DockPanel>
+			<StackPanel Spacing="10" MaxWidth="400" VerticalAlignment="Center"
+						DockPanel.Dock="Top">
+				<TextBox Padding="10" Margin="5" Height="50" VerticalContentAlignment="Center"
+						 Watermark="E-mail" AcceptsReturn="False"
+						 FontSize="16" MaxLines="1"
+						 Text="{Binding Email}"/>
+				<TextBox Padding="10" Margin="5" Height="50" VerticalContentAlignment="Center"
+						 Watermark="Password" AcceptsReturn="False"
+						 FontSize="16" MaxLines="1" PasswordChar="*"
+						 Text="{Binding Password}"/>
+				<CheckBox Content="Use SSL/TLS encrypted channel"
+						  HorizontalAlignment="Center"
+						  IsChecked="{Binding UseEncryption}"/>
+			</StackPanel>
+			
+			
+			<StackPanel Spacing="10" MaxWidth="400" VerticalAlignment="Center"
+						DockPanel.Dock="Bottom">
+
+				<TextBlock HorizontalAlignment="Center"
+						   FontSize="20"
+						   Text="Host server address"/>
+				<TextBox Padding="10" Margin="5" Height="50" VerticalContentAlignment="Center"
+						Watermark="protocol.server.com" AcceptsReturn="False"
+						FontSize="16" MaxLines="1"
+						Text="{Binding HostServerAddress}"/>
+				<ComboBox HorizontalAlignment="Center"
+						  ItemsSource="{Binding Protocols}"
+						  SelectedIndex="{Binding SelectedProtocolIdx}">
+					<ComboBox.ItemTemplate>
+						<DataTemplate>
+							<TextBlock Text="{Binding Display}"/>
+						</DataTemplate>
+					</ComboBox.ItemTemplate>
+				</ComboBox>
+				
+			</StackPanel>
+			
+		</DockPanel>
 
 		
 	</DockPanel>

@@ -1,10 +1,14 @@
 ﻿using Avalonia.Threading;
+using CS_and_N4.Models;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using System;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Net.Sockets;
 using System.Reactive;
+using System.Threading.Tasks;
 
 namespace CS_and_N4.ViewModels
 {
@@ -32,7 +36,19 @@ namespace CS_and_N4.ViewModels
         public bool UseEncryption { get; set; }
 
         [Reactive]
-        public Socket? ConnectionSocket { get; set; }
+        public ClientBase? ConnectedClient { get; set; }
+
+        public ObservableCollection<ClientCreator> Protocols { get; } = new ObservableCollection<ClientCreator>()
+        {
+            new IMAPCreator(),
+            new POPCreator()
+        };
+
+        [Reactive]
+        public int SelectedProtocolIdx { get; set; }
+
+        [Reactive]
+        public string HostServerAddress { get; set; }
 
 
         private string _errorText;
@@ -65,32 +81,55 @@ namespace CS_and_N4.ViewModels
             IsAuthAllowed = true;
             UseEncryption = true;
             ErrorText = string.Empty;
-            ConnectionSocket = null;
+            ConnectedClient = null;
+            SelectedProtocolIdx = 0;
+            HostServerAddress = string.Empty;
 
             IObservable<bool> btnEnabled = this.WhenAnyValue(
-                x => x.Email, x => x.Password, x => x.IsAuthAllowed,
-                (x, y, z) => !string.IsNullOrEmpty(x) && !string.IsNullOrEmpty(y) && IsAuthAllowed
+                x => x.Email, x => x.Password, x => x.HostServerAddress, x => x.IsAuthAllowed,
+                (email, pass, host, allowed) =>
+                    !string.IsNullOrEmpty(email) &&
+                    !string.IsNullOrEmpty(pass) &&
+                    !string.IsNullOrEmpty(host) &&
+                    IsAuthAllowed
                 );
 
             AuthenticateUser = ReactiveCommand.Create(
                 () => {
                     // disable the login button 
                     IsAuthAllowed = false;
+
                     // try to connect 
-                    ConnectionSocket = new Socket(SocketType.Dgram, ProtocolType.Udp);
+                    ConnectToServerAsync();
+
                     // try to authenticate
-                    ErrorText = "ERROR: NOT IMPLEMENTED";
+                    //ErrorText = "ERROR: NOT IMPLEMENTED";
 
                     // enable the buttons
-                    IsAuthAllowed = true;
                 },
                 btnEnabled
             );
+
         }
 
         private void ClearError(object? sender, EventArgs e)
         {
             ErrorText = string.Empty;
+        }
+
+        private async Task ConnectToServerAsync() {
+            ClientBase client = Protocols[SelectedProtocolIdx].CreateClient(UseEncryption, HostServerAddress);
+            string? result = await client.AuthenticateAsync(Email, Password);
+            if (result != null)
+            {
+                ErrorText = result.ToString();
+            }
+            else
+            {
+                ConnectedClient = client;
+            }
+
+            IsAuthAllowed = true;
         }
     }
 }

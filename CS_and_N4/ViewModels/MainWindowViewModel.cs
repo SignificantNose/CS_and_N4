@@ -1,5 +1,6 @@
 ﻿using Avalonia.Threading;
 using Avalonia.Utilities;
+using CS_and_N4.Models;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using System;
@@ -32,21 +33,27 @@ namespace CS_and_N4.ViewModels
             // subscribe to an observable of the Authorization
             // basically need to switch up the view
             Authorization
-                .WhenAnyValue(vm => vm.ConnectionSocket)
-                .Subscribe((Socket? sock )=> 
+                .WhenAnyValue(vm => vm.ConnectedClient)
+                .Subscribe((ClientBase? ConnectedClient )=> 
                 {
-                    if (sock != null && !SessionActive) { 
-                        StartIMAPSession(sock);
+                    if (ConnectedClient != null) {
+                        if (!SessionActive)
+                        {
+                            StartIMAPSession((IMAPClient)ConnectedClient);
+                        }
+                        else {
+                            ConnectedClient.CloseConnection();
+                        }
                     }
                 }
                 );
                 
             CurrentViewModel = Authorization;
         }
-        private void StartIMAPSession(Socket sock) {
+        private void StartIMAPSession(IMAPClient client) {
             SessionActive = true;
 
-            IMAPClientViewModel IMAPClient = new IMAPClientViewModel(sock);
+            IMAPClientViewModel IMAPClient = new IMAPClientViewModel(client);
             // change SessionActive based on the IMAPClientViewModel changes
             IMAPClient.QuitCommand.Subscribe(
                 (_) => 
