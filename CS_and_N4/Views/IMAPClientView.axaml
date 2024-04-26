@@ -69,15 +69,21 @@
 				</Grid.ColumnDefinitions>
 				<ComboBox Grid.Column="0" HorizontalAlignment="Stretch"
 						  ItemsSource="{Binding MailBoxes}"
-						  ItemTemplate="{StaticResource MailBoxTemplate}">
+						  ItemTemplate="{StaticResource MailBoxTemplate}"
+						  SelectedIndex="{Binding SelectedMailboxIdx}" >
 				</ComboBox>
 				<Button Grid.Column="1" Content="Refresh"/>
 			</Grid>
 
-			<ListBox>
-				<ListBoxItem>ads</ListBoxItem>
-				<ListBoxItem>ads</ListBoxItem>
-				<ListBoxItem>ads</ListBoxItem>
+			<ListBox ItemsSource="{Binding CurrentMailList}" >
+				<ListBox.ItemTemplate>
+					<DataTemplate>
+						<StackPanel>							
+							<TextBlock Text="{Binding msgHeader}"/>
+							<TextBlock Text="{Binding msgDate}"/>
+						</StackPanel>
+					</DataTemplate>
+				</ListBox.ItemTemplate>
 			</ListBox>
 		</StackPanel>
 
