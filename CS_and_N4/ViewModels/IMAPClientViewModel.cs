@@ -32,6 +32,7 @@ namespace CS_and_N4.ViewModels
         protected IMAPClient client;
 
 
+
         [Reactive]
         public string CurrentPageIndexStr { get; set; }
 
@@ -129,10 +130,28 @@ namespace CS_and_N4.ViewModels
             NextPageCommand = ReactiveCommand.Create(NextPageHandler, globalEnabledObserver);
 
             ActualPageIndex = null;
-/*
-            this.WhenAnyValue(x => CurrentPageIndex)
+
+            this.WhenAnyValue(x => x.CurrentPageIndexStr)
                 .Throttle(TimeSpan.FromMilliseconds(1000))
-                .Subscribe(SwitchPage);*/
+                .Subscribe(
+                (string? v) => {
+                    if (GlobalEnabler)
+                    {
+                        int idxValue;
+                        if (int.TryParse(v, out idxValue))
+                        {
+
+                            // probably (and again, probably) this condition
+                            // can be discarded because of .raiseandsetIFCHANGED
+                            // but then the setter will be called, so no, thanks
+                            if (ActualPageIndex != idxValue)
+                            {
+                                ActualPageIndex = idxValue;
+                            }
+
+                        }
+                    }
+                });
         }
 
 
