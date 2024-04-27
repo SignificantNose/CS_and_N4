@@ -94,19 +94,8 @@ namespace CS_and_N4.ViewModels
                     IsAuthAllowed
                 );
 
-            AuthenticateUser = ReactiveCommand.Create(
-                () => {
-                    // disable the login button 
-                    IsAuthAllowed = false;
-
-                    // try to connect 
-                    ConnectToServerAsync();
-
-                    // try to authenticate
-                    //ErrorText = "ERROR: NOT IMPLEMENTED";
-
-                    // enable the buttons
-                },
+            AuthenticateUser = ReactiveCommand.CreateFromTask(
+                ConnectToServerAsync,
                 btnEnabled
             );
 
@@ -118,6 +107,7 @@ namespace CS_and_N4.ViewModels
         }
 
         private async Task ConnectToServerAsync() {
+            IsAuthAllowed = false;
             ClientBase client = Protocols[SelectedProtocolIdx].CreateClient(UseEncryption, HostServerAddress);
             string? result = await client.AuthenticateAsync(Email, Password);
             if (result != null)

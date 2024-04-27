@@ -10,6 +10,7 @@ using System.Diagnostics;
 using System.Diagnostics.Contracts;
 using System.Linq;
 using System.Reactive;
+using System.Reactive.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -19,11 +20,43 @@ namespace CS_and_N4.ViewModels
 {
     public class IMAPClientViewModel : MailClientViewModelBase
     {
+        [Reactive]
+        public bool GlobalEnabler { get; set; }
+
 
         public ReactiveCommand<Unit, Unit> QuitCommand { get; set; }
+        public ReactiveCommand<Unit, Unit> RefreshCommand { get; set; }
+        public ReactiveCommand<Unit, Unit> PrevPageCommand { get; set; }
+        public ReactiveCommand<Unit, Unit> NextPageCommand { get; set; }
+
         protected IMAPClient client;
 
-        
+
+        [Reactive]
+        public string CurrentPageIndexStr { get; set; }
+
+        private int? _actualPageIndex;
+        private int? ActualPageIndex {
+            get => _actualPageIndex;
+            set 
+            {
+                _actualPageIndex = value;
+                if (value == null)
+                {
+                    // clear the page
+                    CurrentMailList.Clear();
+                    CurrentPageIndexStr = "";
+                }
+                else {
+                    // fill the page
+
+                    // but first, validate. make sure that the current mailbox
+                    // contains mail and is chosen
+                    CurrentPageIndexStr = value.Value.ToString();
+                }
+            } 
+        }
+
         private int _selectedMailboxIdx;
         public int SelectedMailboxIdx
         {
@@ -32,7 +65,6 @@ namespace CS_and_N4.ViewModels
             {
                 // set the new contents of the mailbox mail list
                 SelectMailboxAsync(MailBoxes[value]);
-
                 this.RaiseAndSetIfChanged(ref _selectedMailboxIdx, value);
             }
         }
@@ -45,76 +77,43 @@ namespace CS_and_N4.ViewModels
 
         public IMAPClientViewModel(IMAPClient client)
         {
+            GlobalEnabler = true;
+
             this.client = client;
 
             // acquiring the list of mailbox and making the 
             // initially selected mailbox an empty one
-            GetListOfMailboxesAsync();
+            // UPD: the constructor cannot be async.
+            // initially the mailbox combobox will be empty
+            //GetListOfMailboxesAsync();
 
-
-            QuitCommand = ReactiveCommand.Create(() =>
-            {
-                // socket.close or something like that
-                client.QuitSessionAsync();
-            }
-            );
+            IObservable<bool> globalEnabledObserver = this.WhenAnyValue(x => x.GlobalEnabler);
+            QuitCommand = ReactiveCommand.CreateFromTask(client.QuitSessionAsync, globalEnabledObserver);
+            RefreshCommand = ReactiveCommand.CreateFromTask(RefreshAsync, globalEnabledObserver);
+/*            PrevPageCommand = ReactiveCommand.Create(null, globalEnabledObserver);
+            NextPageCommand = ReactiveCommand.Create(null, globalEnabledObserver);
+*/
+            ActualPageIndex = null;
+/*
+            this.WhenAnyValue(x => CurrentPageIndex)
+                .Throttle(TimeSpan.FromMilliseconds(1000))
+                .Subscribe(SwitchPage);*/
         }
 
-
-
-        public async Task GetListOfMailboxesAsync()
-        {
-            string[] data;
-            string tag;
-
-            string query = $"LIST \"\" *";
-            (data, tag) = await client.SmalltalkAsync(query);
-
-            if (tag == "")
-            {
-                // error occurred
-            }
-            else
-            {
-                // get the current response as a string
-                List<MailBox> boxes = new List<MailBox>();
-
-                // update the combobox
-                foreach (string line in data)
-                {
-                    if (line.StartsWith("* LIST ")) {
-                        // current line is a mail box
-
-                        string pattern = @"\* LIST \(([^)]*)\) ""([^""]*)"" ""([^""]*)""";
-                        Match match = Regex.Match(line, pattern);
-                        if (match.Success) {
-                            string altName = match.Groups[1].Value;
-                            string Name = match.Groups[3].Value;
-                            boxes.Add(new MailBox(Name, altName));
-                        }
-
-/*                        int startIdx, endIdx;
-                        startIdx = line.IndexOf('(');
-                        endIdx = line.IndexOf(')');
-                        string altName = line.Substring(startIdx+1, endIdx-startIdx-1);*/
-
-                    }
-                }
-
-                MailBoxes.Clear();
-                MailBoxes.Add(new MailBox(MAILBOX_ALT_EMPTY, MAILBOX_EMPTY));
-                MailBoxes.AddRange(boxes);
-                SelectedMailboxIdx = 0;
-                // add to console log
-                //Log.Add(new DialogueStruct(tag + " " + query, data));
-            }
+        public async Task RefreshAsync() {
+            MailBoxes.Clear();
+            List<MailBox> boxes = await Query_ListMailboxesAsync();
+            MailBoxes.Add(new MailBox(MAILBOX_ALT_EMPTY, MAILBOX_EMPTY));
+            MailBoxes.AddRange(boxes);
+            //SelectedMailboxIdx = 0;
         }
 
         protected async Task SelectMailboxAsync(MailBox mb) {
             if (mb.Name == MAILBOX_EMPTY && mb.altName == MAILBOX_ALT_EMPTY) return;
 
 
-            string[] selectResponse = await QuerySelectMailboxAsync(mb.Name);
+            GlobalEnabler = false;
+            string[] selectResponse = await Query_SelectMailboxAsync(mb.Name);
             if (selectResponse.Length > 0) {
                 int amntOfMail = 0;
                 foreach (string response in selectResponse)
@@ -141,26 +140,29 @@ namespace CS_and_N4.ViewModels
 
 
                 // display page; it'll deal with the unknown mail
-                DisplayMailPageAsync(mb, 0);
+                //DisplayMailPageAsync(mb, 0);
+                // change the current page to 0?
+                //ActualPageIndex = 0;
             }
             else { 
                 // error in response
             }
             // find the IDs if they are not found
 
-                // change the count of messages
+            // change the count of messages
 
 
-/*                int[] indices = await QuerySearchAllAsync();
-                foreach(int i in indices)
-                {
-                    mb.Mail.Add(i, null);
-                }*/
-            
+            /*                int[] indices = await QuerySearchAllAsync();
+                            foreach(int i in indices)
+                            {
+                                mb.Mail.Add(i, null);
+                            }*/
 
+            GlobalEnabler = true;
         }
 
         protected async Task DisplayMailPageAsync(MailBox mb, int index) {
+            GlobalEnabler = false;
             CurrentMailList.Clear();
 
 
@@ -192,7 +194,7 @@ namespace CS_and_N4.ViewModels
 
                         // ask for headers 
                         // then, update the 
-                        MailMessage[] mail = await QueryMsgHeaderAsync(startIdx, endIdx);
+                        MailMessage[] mail = await Query_FetchMessageAsync(startIdx, endIdx);
                         if (mail.Length != endIdx - startIdx+1)
                         {
                             // error: some messages are not parsed
@@ -222,28 +224,75 @@ namespace CS_and_N4.ViewModels
             else { 
                 // unexpected error
             }
+
+            GlobalEnabler = true;
         }
 
-        protected async Task<MailMessage[]> QueryMsgHeaderAsync(int startIdx, int endIdx) {
-            string[] data;
-            string tag;
+
+
+        public async Task<List<MailBox>> Query_ListMailboxesAsync()
+        {
+            QueryResult qResult;
+
+            string query = $"LIST \"\" *";
+            qResult = await client.SmalltalkAsync(query);
+
+            if (!qResult.status)
+            {
+                // error occurred
+                return null;
+            }
+            else
+            {
+                // get the current response as a string
+                List<MailBox> boxes = new List<MailBox>();
+
+                // update the combobox
+                foreach (string line in qResult.data)
+                {
+                    if (line.StartsWith("* LIST "))
+                    {
+                        // current line is a mail box
+
+                        string pattern = @"\* LIST \(([^)]*)\) ""([^""]*)"" ""([^""]*)""";
+                        Match match = Regex.Match(line, pattern);
+                        if (match.Success)
+                        {
+                            string altName = match.Groups[1].Value;
+                            string Name = match.Groups[3].Value;
+                            boxes.Add(new MailBox(Name, altName));
+                        }
+
+                        /*                        int startIdx, endIdx;
+                                                startIdx = line.IndexOf('(');
+                                                endIdx = line.IndexOf(')');
+                                                string altName = line.Substring(startIdx+1, endIdx-startIdx-1);*/
+
+                    }
+                }
+
+
+
+                // add to console log
+                Log.Add(new DialogueStruct(qResult.header + " " + query, qResult.data));
+                return boxes;
+            }
+        }
+
+        protected async Task<MailMessage[]> Query_FetchMessageAsync(int startIdx, int endIdx) {
+            QueryResult qResult;
 
             string query = $"FETCH {startIdx}:{endIdx} (BODY[HEADER.FIELDS (SUBJECT DATE)])";
-            (data, tag) = await client.SmalltalkAsync(query);
+            qResult = await client.SmalltalkAsync(query);
 
-            if (tag == "")
+            if (!qResult.status)
             {
                 // error occurred
                 return [];
             }
             else
             {
-                int counter = 0;
-                foreach (string line in data)
-                {
-                    Debug.WriteLine($"{counter}: {line}");
-                    counter++;
-                }
+                string[] data = qResult.data;
 
                 List<MailMessage> mailMsgs = new List<MailMessage>();
                 string date = "";
@@ -275,21 +324,21 @@ namespace CS_and_N4.ViewModels
             }
         }
 
-        protected async Task<int[]> QuerySearchAllAsync()
+        protected async Task<int[]> Query_SearchAllAsync()
         {
-            string[] data;
-            string tag;
+            QueryResult qResult;
 
             string query = "SEARCH ALL";
-            (data, tag) = await client.SmalltalkAsync(query);
+            qResult = await client.SmalltalkAsync(query);
 
-            if (tag == "")
+            if (!qResult.status)
             {
                 // error occurred
                 return [];
             }
             else
             {
+                string[] data = qResult.data;
                 // get the substring
                 if (data.Length != 2) {
                     // not implemented: the mailbox is too large
@@ -308,19 +357,19 @@ namespace CS_and_N4.ViewModels
             }
         }
 
-        public async Task<string[]> QuerySelectMailboxAsync(string boxName) {
-            string[] data;
-            string tag;
+        public async Task<string[]> Query_SelectMailboxAsync(string boxName) {
+            QueryResult qResult;
 
             string query = $"SELECT {boxName}";
-            (data, tag) = await client.SmalltalkAsync(query);
+            qResult = await client.SmalltalkAsync(query);
 
-            if (tag == "")
+            if (!qResult.status)
             {
                 // error occurred
                 return [];
             }
             else {
+                string[] data = qResult.data;
                 int counter = 0;
                 foreach (string line in data) {
                     Debug.WriteLine($"{counter}: {line}");
@@ -330,19 +379,20 @@ namespace CS_and_N4.ViewModels
             }
         }
 
-        public async Task GetDateSubjectAsync(int startIdx, int? endIdx = null) {
-            string tag;
-            string[] data;
+        public async Task Query_GetDateSubjectAsync(int startIdx, int? endIdx = null) {
+            QueryResult qResult;
             
             string addPart = endIdx == null ? "" : $":{endIdx}";
             string query = $"FETCH {startIdx}{addPart} (BODY[HEADER.FIELDS (SUBJECT DATE)])";
 
-            (data, tag) = await client.SmalltalkAsync(query);
-            if (tag == "")
+            qResult = await client.SmalltalkAsync(query);
+            if (!qResult.status)
             {
                 // error occurred
             }
-            else { 
+            else
+            {
+                string[] data = qResult.data;
                 // display data in a clickable listbox
                 int counter = 0;
                 foreach (string line in data) {
@@ -352,18 +402,18 @@ namespace CS_and_N4.ViewModels
             }
         }
 
-        public async Task GetMailContentAsync(int msgIdx) {
-            string tag;
-            string[] data;
+        public async Task Query_GetMailContentAsync(int msgIdx) {
+            QueryResult qResult;
 
             string query = $"FETCH {msgIdx} (BODY[TEXT])";
-            (data, tag) = await client.SmalltalkAsync(query);
-            if (tag == "")
+            qResult = await client.SmalltalkAsync(query);
+            if (!qResult.status)
             {
                 // error occurred
             }
             else
             {
+                string[] data = qResult.data;
                 // display data in a clickable listbox
                 int counter = 0;
                 foreach (string line in data)

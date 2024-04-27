@@ -34,7 +34,7 @@
 	<Grid>
 		<Grid.ColumnDefinitions>
 			<ColumnDefinition Width="*"/>
-			<ColumnDefinition Width="*"/>
+			<ColumnDefinition Width="2*"/>
 			<ColumnDefinition Width="3*"/>
 		</Grid.ColumnDefinitions>
 		
@@ -49,33 +49,42 @@
 			<Button Grid.Row="0" Content="Quit" 
 					HorizontalAlignment="Stretch"
 					HorizontalContentAlignment="Center"
-					Command="{Binding QuitCommand}"/>
+					Command="{Binding QuitCommand}"
+					/>
 			<ListBox Grid.Row="1" ItemsSource="{Binding Log}"
 					 ItemTemplate="{StaticResource DialogueTemplate}">
 				
 			</ListBox>
-			<TextBox Grid.Row="2" AcceptsReturn="True"/>
+			<!--<TextBox Grid.Row="2" AcceptsReturn="True"/>-->
 		</Grid>
 		
 		<!-- MAIL ZONE -->
-		<StackPanel Grid.Column="1">
+		<Grid Grid.Column="1">
+			<Grid.RowDefinitions>
+				<RowDefinition Height="Auto"/>
+				<RowDefinition Height="*"/>
+				<RowDefinition Height="Auto"/>
+			</Grid.RowDefinitions>
 			<!--Didn't get the desired result
 				neither with DockPanel,
 				nor with StackPanel-->
-			<Grid>
+			<Grid Grid.Row="0">
 				<Grid.ColumnDefinitions>
 					<ColumnDefinition Width="*"/>
 					<ColumnDefinition Width="Auto"/>
 				</Grid.ColumnDefinitions>
 				<ComboBox Grid.Column="0" HorizontalAlignment="Stretch"
+						  IsEnabled="{Binding GlobalEnabler}"
 						  ItemsSource="{Binding MailBoxes}"
 						  ItemTemplate="{StaticResource MailBoxTemplate}"
 						  SelectedIndex="{Binding SelectedMailboxIdx}" >
 				</ComboBox>
-				<Button Grid.Column="1" Content="Refresh"/>
+				<Button Grid.Column="1" Content="Refresh"
+						Command="{Binding RefreshCommand}"/>
 			</Grid>
 
-			<ListBox ItemsSource="{Binding CurrentMailList}" >
+			<ListBox ItemsSource="{Binding CurrentMailList}"
+					 Grid.Row="1" >
 				<ListBox.ItemTemplate>
 					<DataTemplate>
 						<StackPanel>							
@@ -85,7 +94,31 @@
 					</DataTemplate>
 				</ListBox.ItemTemplate>
 			</ListBox>
-		</StackPanel>
+
+			
+			<Grid Grid.Row="2">
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="Auto"/>
+					<ColumnDefinition Width="*"/>
+					<ColumnDefinition Width="Auto"/>
+				</Grid.ColumnDefinitions>
+				
+				<Button Content="Previous"
+						Grid.Column="0"
+						Width="80"
+						HorizontalContentAlignment="Center"
+						Command="{Binding PrevPageCommand}"/>
+				<TextBox Grid.Column="1"
+						 HorizontalContentAlignment="Center"
+						 Text="{Binding CurrentPageIndexStr}"/>
+				<Button Content="Next"
+						Grid.Column="2"
+						Width="80"
+						HorizontalContentAlignment="Center"
+						Command="{Binding NextPageCommand}"/>
+				
+			</Grid>
+		</Grid>
 
 		<!-- DISPLAY CONTENT ZONE -->
 		<TextBox Grid.Column="2" 

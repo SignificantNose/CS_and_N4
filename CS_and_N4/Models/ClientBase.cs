@@ -4,12 +4,25 @@ using System.IO;
 using System.Linq;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Security.Authentication;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace CS_and_N4.Models
 {
+    public class QueryResult {
+        public bool status;
+        public string header;
+        public string[]? data;
+
+        public QueryResult(bool status, string header, string[]? data) {
+            this.status = status;
+            this.header = header;
+            this.data = data;
+        }
+    }
+
     public abstract class ClientBase
     {
         public abstract int EncryptedPort { get; }
@@ -30,10 +43,9 @@ namespace CS_and_N4.Models
         // method used as a dialogue between a client and 
         // a server. the connection is established, it's
         // only necessary to authenticate as a valid user
-        protected abstract Task<string?> AuthorizeClientAsync(string email, string password);
+        protected abstract Task<QueryResult> AuthorizeClientAsync(string email, string password);
 
 
-        // null result = meaning, no error occurred
         public async Task<string?> AuthenticateAsync(string email, string password) {
             string? result = null;
             client = new TcpClient();
@@ -54,12 +66,10 @@ namespace CS_and_N4.Models
                 reader = new StreamReader(preStream);
                 writer = new StreamWriter(preStream);
 
-                result = await AuthorizeClientAsync(email, password);
-/*                if (result!=null)
-                {   // invalid login/password
-                    result = "Invalid e-mail or password. Try again.";
-                }*/
-
+                QueryResult qResponse = await AuthorizeClientAsync(email, password);
+                if (!qResponse.status) {
+                    result = qResponse.header;
+                }
             }
             catch (AuthenticationException authEx)
             {
