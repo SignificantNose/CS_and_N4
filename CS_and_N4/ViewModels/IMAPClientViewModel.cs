@@ -38,36 +38,55 @@ namespace CS_and_N4.ViewModels
         private int? _actualPageIndex;
         private int? ActualPageIndex {
             get => _actualPageIndex;
-            set 
-            {
-                _actualPageIndex = value;
+            set {
+                //_actualPageIndex = value;
+                int? validValue = value;
+
                 if (value == null)
                 {
                     // clear the page
                     CurrentMailList.Clear();
-                    CurrentPageIndexStr = "";
+                    CurrentPageIndexStr = String.Empty;
                 }
-                else {
-                    // fill the page
-
-                    // but first, validate. make sure that the current mailbox
-                    // contains mail and is chosen
-                    CurrentPageIndexStr = value.Value.ToString();
+                else
+                {
+                    int maxPage = MailBoxes[SelectedMailboxIdx].MaxPages;
+                    if (maxPage == 0)
+                    {
+                        validValue = null;
+                        CurrentPageIndexStr = String.Empty;
+                    }
+                    else { 
+                        if (value < 0) {
+                            validValue = 0;
+                        }
+                        else if (value >= maxPage)
+                        {
+                            validValue = maxPage - 1;
+                        }
+                        CurrentPageIndexStr = validValue.Value.ToString();
+                    }
                 }
-            } 
-        }
-
-        private int _selectedMailboxIdx;
-        public int SelectedMailboxIdx
-        {
-            get => _selectedMailboxIdx;
-            set
-            {
-                // set the new contents of the mailbox mail list
-                SelectMailboxAsync(MailBoxes[value]);
-                this.RaiseAndSetIfChanged(ref _selectedMailboxIdx, value);
+                // only the valid value for the current
+                // mailbox can be set to the _actualPageIndex
+                this.RaiseAndSetIfChanged(ref _actualPageIndex, validValue);
             }
         }
+
+        /*        private int _selectedMailboxIdx;
+                public int SelectedMailboxIdx
+                {
+                    get => _selectedMailboxIdx;
+                    set
+                    {
+                        // set the new contents of the mailbox mail list
+                        SelectMailboxAsync(MailBoxes[value]);
+                        this.RaiseAndSetIfChanged(ref _selectedMailboxIdx, value);
+                    }
+                }*/
+
+        [Reactive]
+        public int SelectedMailboxIdx { get; set; }
 
         [Reactive]
         public string CurrentContent { get; set; }
@@ -87,17 +106,43 @@ namespace CS_and_N4.ViewModels
             // initially the mailbox combobox will be empty
             //GetListOfMailboxesAsync();
 
+
+            // as the properties cannot be async:
+            this.WhenAnyValue(x => x.SelectedMailboxIdx)
+                .Subscribe(async idx =>
+                {
+                    await SelectMailboxAsync(idx);
+                });
+
+            // same here
+            this.WhenAnyValue(x => x.ActualPageIndex)
+                .Subscribe(
+                    // here I must update the current mail list
+                    // and query the mail header if needed
+                );
+
+
             IObservable<bool> globalEnabledObserver = this.WhenAnyValue(x => x.GlobalEnabler);
             QuitCommand = ReactiveCommand.CreateFromTask(client.QuitSessionAsync, globalEnabledObserver);
             RefreshCommand = ReactiveCommand.CreateFromTask(RefreshAsync, globalEnabledObserver);
-/*            PrevPageCommand = ReactiveCommand.Create(null, globalEnabledObserver);
-            NextPageCommand = ReactiveCommand.Create(null, globalEnabledObserver);
-*/
+            PrevPageCommand = ReactiveCommand.Create(PrevPageHandler, globalEnabledObserver);
+            NextPageCommand = ReactiveCommand.Create(NextPageHandler, globalEnabledObserver);
+
             ActualPageIndex = null;
 /*
             this.WhenAnyValue(x => CurrentPageIndex)
                 .Throttle(TimeSpan.FromMilliseconds(1000))
                 .Subscribe(SwitchPage);*/
+        }
+
+
+        public void PrevPageHandler()
+        {
+            ActualPageIndex--;
+        }
+        public void NextPageHandler()
+        {
+            ActualPageIndex++;
         }
 
         public async Task RefreshAsync() {
@@ -108,55 +153,82 @@ namespace CS_and_N4.ViewModels
             //SelectedMailboxIdx = 0;
         }
 
-        protected async Task SelectMailboxAsync(MailBox mb) {
-            if (mb.Name == MAILBOX_EMPTY && mb.altName == MAILBOX_ALT_EMPTY) return;
-
-
+        protected async Task SelectMailboxAsync(int mailboxID) {
             GlobalEnabler = false;
-            string[] selectResponse = await Query_SelectMailboxAsync(mb.Name);
-            if (selectResponse.Length > 0) {
-                int amntOfMail = 0;
-                foreach (string response in selectResponse)
+
+            // as the value for the first-time is initialized like so:
+            if (mailboxID < MailBoxes.Count)
+            {
+                MailBox mb = MailBoxes[mailboxID];
+                // checking if the current mailbox is a default one
+                // p.s. the check can be simplified
+                if (!(mb.Name == MAILBOX_EMPTY && mb.altName == MAILBOX_ALT_EMPTY))
                 {
-                    if (response.Contains("EXISTS")){
-                        // assuming that the string contains data of type: 
-                        // "* NNN EXISTS"
-                        string pattern = @"\* (\d+) EXISTS";
-                        Match match = Regex.Match(response, pattern);
-                        if (match.Success)
+                    string[] selectResponse = await Query_SelectMailboxAsync(mb.Name);
+                    if (selectResponse.Length > 0)
+                    {
+                        int amntOfMail = -1;
+                        foreach (string response in selectResponse)
                         {
-                            amntOfMail = int.Parse(match.Groups[1].Value);
-                        }
-                        else { 
-                            // error: string of other type
-                        }
-                        break;
-                    }
-                }
-                if (!(mb.MailCount != null && mb.MailCount == amntOfMail)) {
-                    mb.MailCount = amntOfMail;
-                    // now the max amount of pages is set
-                }
-
-
-                // display page; it'll deal with the unknown mail
-                //DisplayMailPageAsync(mb, 0);
-                // change the current page to 0?
-                //ActualPageIndex = 0;
-            }
-            else { 
-                // error in response
-            }
-            // find the IDs if they are not found
-
-            // change the count of messages
-
-
-            /*                int[] indices = await QuerySearchAllAsync();
-                            foreach(int i in indices)
+                            if (response.Contains("EXISTS"))
                             {
-                                mb.Mail.Add(i, null);
-                            }*/
+                                // assuming that the string contains data of type: 
+                                // "* NNN EXISTS"
+                                string pattern = @"\* (\d+) EXISTS";
+                                Match match = Regex.Match(response, pattern);
+                                if (match.Success)
+                                {
+                                    amntOfMail = int.Parse(match.Groups[1].Value);
+                                }
+                                else
+                                {
+                                    // error: string of other type
+                                }
+                                break;
+                            }
+                        }
+                        if (amntOfMail == -1)
+                        {
+                            // error: EXISTS was not found
+                        }
+
+                        if (!(mb.MailCount != null && mb.MailCount == amntOfMail))
+                        {
+                            mb.MailCount = amntOfMail;
+                            // now the max amount of pages is set
+                        }
+
+                        // display page; it'll deal with the unknown mail
+                        //DisplayMailPageAsync(mb, 0);
+
+                        // change the current page to 0?
+                        if (amntOfMail == 0)
+                        {
+                            ActualPageIndex = null;
+                        }
+                        else
+                        {
+                            ActualPageIndex = 0;
+                        }
+                    }
+                    else
+                    {
+                        // error in response
+                    }
+                    // find the IDs if they are not found
+
+                    // change the count of messages
+
+
+                    /*                int[] indices = await QuerySearchAllAsync();
+                                    foreach(int i in indices)
+                                    {
+                                        mb.Mail.Add(i, null);
+                                    }*/
+                }
+
+
+            }
 
             GlobalEnabler = true;
         }
