@@ -19,12 +19,12 @@
 		
 		<DataTemplate x:Key="DialogueTemplate" DataType="vm:DialogueStruct">
 			<StackPanel>
-				<TextBlock>
+				<TextBlock TextWrapping="NoWrap" MaxLines="1">
 					<Run Text="Q:"/>
 					<Run Text="{Binding Query}"/>
 				</TextBlock>
 				
-				<TextBlock>
+				<TextBlock TextWrapping="NoWrap" MaxLines="1">
 					<Run Text="R:"/>
 					<Run Text="{Binding Response}"/>
 				</TextBlock>
@@ -51,8 +51,10 @@
 					HorizontalContentAlignment="Center"
 					Command="{Binding QuitCommand}"
 					/>
-			<ListBox Grid.Row="1" ItemsSource="{Binding Log}"
-					 ItemTemplate="{StaticResource DialogueTemplate}">
+			<ListBox Grid.Row="1" 
+					 ItemsSource="{Binding Log}"
+					 ItemTemplate="{StaticResource DialogueTemplate}"
+					 SelectedIndex="{Binding ChosenLogItemIdx}">
 				
 			</ListBox>
 			<!--<TextBox Grid.Row="2" AcceptsReturn="True"/>-->
@@ -84,6 +86,9 @@
 			</Grid>
 
 			<ListBox ItemsSource="{Binding CurrentMailList}"
+					 SelectedIndex="{Binding SelectedMailIdx}"
+					 
+					 
 					 Grid.Row="1" >
 				<ListBox.ItemTemplate>
 					<DataTemplate>
@@ -122,7 +127,10 @@
 
 		<!-- DISPLAY CONTENT ZONE -->
 		<TextBox Grid.Column="2" 
-				 Text="{Binding CurrentContent}"/>
+				 Text="{Binding CurrentContent}"
+				 TextWrapping="WrapWithOverflow"
+				 IsReadOnly="True"
+				 />
 		
 	</Grid>
 </UserControl>

@@ -2,11 +2,13 @@
 using CS_and_N4.Models;
 using DynamicData;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using MimeKit.Tnef;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Diagnostics.Contracts;
 using System.Linq;
@@ -36,6 +38,9 @@ namespace CS_and_N4.ViewModels
 
         [Reactive]
         public string CurrentPageIndexStr { get; set; }
+
+        [Reactive]
+        public int ChosenLogItemIdx { get; set; }
 
         private int? _actualPageIndex;
         private int? ActualPageIndex {
@@ -74,6 +79,9 @@ namespace CS_and_N4.ViewModels
                 this.RaiseAndSetIfChanged(ref _actualPageIndex, validValue);
             }
         }
+
+        [Reactive]
+        public int SelectedMailIdx { get; set; }
 
         /*        private int _selectedMailboxIdx;
                 public int SelectedMailboxIdx
@@ -124,6 +132,30 @@ namespace CS_and_N4.ViewModels
                     // and query the mail header if needed
                     await DisplayMailPageAsync(SelectedMailboxIdx, x);
                 });
+
+            this.WhenAnyValue(x => x.ChosenLogItemIdx)
+                .Subscribe((logIdx) =>
+                    {
+                    if (logIdx < Log.Count) {
+                            DialogueStruct currLogElem = Log[logIdx];
+                            CurrentContent = "Query: "+currLogElem.Query + "\r\nResponse: " + currLogElem.Response;
+                        }
+                    }
+                );
+
+
+            this.WhenAnyValue(x => x.SelectedMailIdx)
+                .Subscribe(
+                async (mailIdx) =>
+                {
+                    // WHAT??
+                    if (GlobalEnabler && mailIdx >= 0 && mailIdx < CurrentMailList.Count && ActualPageIndex.HasValue)
+                    {
+                        await ShowMailAsync(MailBoxes[SelectedMailboxIdx], ActualPageIndex.Value, mailIdx);
+                    }
+
+                }
+                );
 
 
             IObservable<bool> globalEnabledObserver = this.WhenAnyValue(x => x.GlobalEnabler);
@@ -178,11 +210,49 @@ namespace CS_and_N4.ViewModels
             //SelectedMailboxIdx = 0;
         }
 
+        // pageIdx = 
+        protected async Task ShowMailAsync(MailBox mb, int pageIdx, int mailPageIdx) {
+            GlobalEnabler = false;
+
+            int mailIdx = pageIdx * MailBox.mailPerPage + mailPageIdx + 1;
+            if (mb.MailCount >= mailIdx)
+            {
+                // good
+                if (!mb.Mail.ContainsKey(mailIdx))
+                {
+                    // error
+                }
+                else {
+                    if (mb.Mail[mailIdx].msgBody == null) {
+                        string? body = await Query_GetMailContentAsync(mailIdx);
+                        if (body == null)
+                        {
+                            // error
+                        }
+                        else {
+                            mb.Mail[mailIdx].msgBody = body;
+                        }
+                    }
+
+                    MailMessage msg = mb.Mail[mailIdx];
+                    // display the message
+                    CurrentContent = $"Subject: {msg.msgHeader}\r\nDate: {msg.msgDate}\r\nBody:\r\n{msg.msgBody}";
+                }
+            }
+            else { 
+                // invalid idx
+            }
+            
+
+            GlobalEnabler = true;
+        }
+
         protected async Task SelectMailboxAsync(int mailboxID) {
             GlobalEnabler = false;
 
+            ActualPageIndex = null;
             // as the value for the first-time is initialized like so:
-            if (mailboxID < MailBoxes.Count)
+            if (mailboxID >= 0 && mailboxID < MailBoxes.Count)
             {
                 MailBox mb = MailBoxes[mailboxID];
                 // checking if the current mailbox is a default one
@@ -226,12 +296,9 @@ namespace CS_and_N4.ViewModels
                         // display page; it'll deal with the unknown mail
                         //DisplayMailPageAsync(mb, 0);
 
+                        ActualPageIndex = null;
                         // change the current page to 0?
-                        if (amntOfMail == 0)
-                        {
-                            ActualPageIndex = null;
-                        }
-                        else
+                        if (amntOfMail != 0)
                         {
                             ActualPageIndex = 0;
                         }
@@ -359,7 +426,7 @@ namespace CS_and_N4.ViewModels
                     {
                         // current line is a mail box
 
-                        string pattern = @"\* LIST \(([^)]*)\) ""([^""]*)"" ""([^""]*)""";
+                        string pattern = @"\* LIST \(([^)]*)\) ""([^""]*)"" (.+)";
                         Match match = Regex.Match(line, pattern);
                         if (match.Success)
                         {
@@ -429,6 +496,8 @@ namespace CS_and_N4.ViewModels
                         }
                     }
                 }
+
+       
 
                 // take the date string, remove it from the string poll
                 // the subject will be anything else
@@ -524,7 +593,7 @@ namespace CS_and_N4.ViewModels
             }
         }
 
-        public async Task Query_GetMailContentAsync(int msgIdx) {
+        public async Task<string?> Query_GetMailContentAsync(int msgIdx) {
             QueryResult qResult;
 
             string query = $"FETCH {msgIdx} (BODY[TEXT])";
@@ -532,19 +601,17 @@ namespace CS_and_N4.ViewModels
             if (!qResult.status)
             {
                 // error occurred
+                return null;
             }
             else
             {
-                string[] data = qResult.data;
-                // display data in a clickable listbox
-                int counter = 0;
-                foreach (string line in data)
-                {
-                    Debug.WriteLine($"{counter}: {line}");
-                    counter++;
+                string response = "";
+                int lastRowIdx = qResult.data.Length - 1;
+                for (int i = 1; i < lastRowIdx; i++) {
+                    response += MimeKit.Utils.Rfc2047.DecodeText(Encoding.UTF8.GetBytes(qResult.data[i])) + "\r\n";
                 }
-
                 Log.Add(new DialogueStruct(qResult.header + " " + query, qResult.data));
+                return response;
             }
         }
     }

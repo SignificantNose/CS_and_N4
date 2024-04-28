@@ -55,7 +55,7 @@ namespace CS_and_N4.ViewModels
             } 
         }
 
-        public Dictionary<int,MailMessage?> Mail = new Dictionary<int,MailMessage?>();
+        public Dictionary<int,MailMessage> Mail = new Dictionary<int,MailMessage>();
 
 
         public MailBox(string Name, string altName)
@@ -75,7 +75,7 @@ namespace CS_and_N4.ViewModels
             StringBuilder sb = new StringBuilder();
             foreach (string response in Response)
             {
-                sb.Append(response);
+                sb.Append(response+"\r\n");
             }
             this.Response = sb.ToString();
         }
