@@ -1,4 +1,5 @@
-﻿using CS_and_N4.Models;
+﻿using Avalonia.Threading;
+using CS_and_N4.Models;
 using DynamicData;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using ReactiveUI;
@@ -117,10 +118,12 @@ namespace CS_and_N4.ViewModels
 
             // same here
             this.WhenAnyValue(x => x.ActualPageIndex)
-                .Subscribe(
+                .Subscribe(async (x) => {
+
                     // here I must update the current mail list
                     // and query the mail header if needed
-                );
+                    await DisplayMailPageAsync(SelectedMailboxIdx, x);
+                });
 
 
             IObservable<bool> globalEnabledObserver = this.WhenAnyValue(x => x.GlobalEnabler);
@@ -131,6 +134,9 @@ namespace CS_and_N4.ViewModels
 
             ActualPageIndex = null;
 
+
+            // because the throttle is not UI-thread-related (?),
+            // I need to manually invoke a method from the UI-thread
             this.WhenAnyValue(x => x.CurrentPageIndexStr)
                 .Throttle(TimeSpan.FromMilliseconds(1000))
                 .Subscribe(
@@ -146,7 +152,7 @@ namespace CS_and_N4.ViewModels
                             // but then the setter will be called, so no, thanks
                             if (ActualPageIndex != idxValue)
                             {
-                                ActualPageIndex = idxValue;
+                                Dispatcher.UIThread.Post(() => ActualPageIndex = idxValue);
                             }
 
                         }
@@ -252,68 +258,76 @@ namespace CS_and_N4.ViewModels
             GlobalEnabler = true;
         }
 
-        protected async Task DisplayMailPageAsync(MailBox mb, int index) {
+        protected async Task DisplayMailPageAsync(int mailboxIdx, int? index) {
             GlobalEnabler = false;
             CurrentMailList.Clear();
 
-
-            if (mb.MailCount != null)
+            if (index != null && mailboxIdx < MailBoxes.Count)
             {
-                int maxPageIdx = mb.MaxPages - 1;
-                if (index > maxPageIdx) index = maxPageIdx;
-                if (index < 0) index = 0;
-
-                int startIdx = index * MailBox.mailPerPage+1;
-                int endIdx = (index + 1) * MailBox.mailPerPage;
-
-                if (endIdx > mb.MailCount) endIdx = mb.MailCount.Value;
-
-
-                // in order to not add these items to a CurrentMailList and 
-                // not make it re-appear every time
-                List<MailMessage> currMsgRange = new List<MailMessage>();
-
-                for (int i = startIdx; i <= endIdx; i++)
+                MailBox mb = MailBoxes[mailboxIdx];
+                if (mb.MailCount != null)
                 {
-                    // check if the current email is present
-                    if (!mb.Mail.ContainsKey(i))
+                    int maxPageIdx = mb.MaxPages - 1;
+                    if (index > maxPageIdx) index = maxPageIdx;
+                    if (index < 0) index = 0;
+
+                    int startIdx = index.Value * MailBox.mailPerPage + 1;
+                    int endIdx = (index.Value + 1) * MailBox.mailPerPage;
+
+                    if (endIdx > mb.MailCount) endIdx = mb.MailCount.Value;
+
+
+                    // in order to not add these items to a CurrentMailList and 
+                    // not make it re-appear every time
+                    List<MailMessage> currMsgRange = new List<MailMessage>();
+
+                    for (int i = startIdx; i <= endIdx; i++)
                     {
-                        // query the server for this range of messages
-                        // upd: what if there are only a few messages that need to be queried?
-                        // upd: imo it's better to ask for a range than to ask for each message separately
-
-
-                        // ask for headers 
-                        // then, update the 
-                        MailMessage[] mail = await Query_FetchMessageAsync(startIdx, endIdx);
-                        if (mail.Length != endIdx - startIdx+1)
+                        // check if the current email is present
+                        if (!mb.Mail.ContainsKey(i))
                         {
-                            // error: some messages are not parsed
-                        }
-                        else {
-                            for (int j = startIdx; j <= endIdx; j++) {
-                                if (mb.Mail.ContainsKey(j))
+                            // query the server for this range of messages
+                            // upd: what if there are only a few messages that need to be queried?
+                            // upd: imo it's better to ask for a range than to ask for each message separately
+
+
+                            // ask for headers 
+                            // then, update the 
+                            MailMessage[] mail = await Query_FetchMessageAsync(startIdx, endIdx);
+                            if (mail.Length != endIdx - startIdx + 1)
+                            {
+                                // error: some messages are not parsed
+                            }
+                            else
+                            {
+                                for (int j = startIdx; j <= endIdx; j++)
                                 {
-                                    mb.Mail[j] = mail[j - startIdx];
-                                }
-                                else { 
-                                    mb.Mail.Add(j, mail[j-startIdx]);
+                                    if (mb.Mail.ContainsKey(j))
+                                    {
+                                        mb.Mail[j] = mail[j - startIdx];
+                                    }
+                                    else
+                                    {
+                                        mb.Mail.Add(j, mail[j - startIdx]);
+                                    }
                                 }
                             }
+
+                            break;
                         }
-
-                        break;
                     }
-                }
 
-                for (int i = startIdx; i <= endIdx; i++) { 
-                    currMsgRange.Add(mb.Mail[i]);
-                }
+                    for (int i = startIdx; i <= endIdx; i++)
+                    {
+                        currMsgRange.Add(mb.Mail[i]);
+                    }
 
-                CurrentMailList.AddRange(currMsgRange);
-            }
-            else { 
-                // unexpected error
+                    CurrentMailList.AddRange(currMsgRange);
+                }
+                else
+                {
+                    // unexpected error
+                }
             }
 
             GlobalEnabler = true;
@@ -392,6 +406,8 @@ namespace CS_and_N4.ViewModels
                     string currString = data[i];
                     if (currString == ")")
                     {
+                        subject = MimeKit.Utils.Rfc2047.DecodeText(Encoding.UTF8.GetBytes(subject));
+                        date = MimeKit.Utils.Rfc2047.DecodeText(Encoding.UTF8.GetBytes(date));
                         mailMsgs.Add(new MailMessage(subject, date));
 
                         date = "";
@@ -404,6 +420,12 @@ namespace CS_and_N4.ViewModels
                         }
                         else if (currString.StartsWith("Subject: ")) {
                             subject = currString.Substring(8);
+                            // bad
+                            while (i+1 < data.Length-1 && !data[i + 1].StartsWith("Date: ") && !(data[i + 1] == "" && !(data[i+1]==")"))){
+                                currString = data[i+1];
+                                subject += currString;
+                                i++;
+                            }
                         }
                     }
                 }
@@ -411,6 +433,7 @@ namespace CS_and_N4.ViewModels
                 // take the date string, remove it from the string poll
                 // the subject will be anything else
 
+                Log.Add(new DialogueStruct(qResult.header + " " + query, qResult.data));
                 return mailMsgs.ToArray();
             }
         }
@@ -444,6 +467,9 @@ namespace CS_and_N4.ViewModels
                 // split it and convert it
                 string[] indicesStrings = indices.Split(' ');
                 int[] indicesValues = Array.ConvertAll(indicesStrings, int.Parse);
+
+                Log.Add(new DialogueStruct(qResult.header + " " + query, qResult.data));
+
                 return indicesValues;
             }
         }
@@ -466,6 +492,9 @@ namespace CS_and_N4.ViewModels
                     Debug.WriteLine($"{counter}: {line}");
                     counter++;
                 }
+
+                Log.Add(new DialogueStruct(qResult.header + " " + query, qResult.data));
+
                 return data;
             }
         }
@@ -490,6 +519,8 @@ namespace CS_and_N4.ViewModels
                     Debug.WriteLine($"{counter}: {line}");
                     counter++;
                 }
+
+                Log.Add(new DialogueStruct(qResult.header + " " + query, qResult.data));
             }
         }
 
@@ -512,6 +543,8 @@ namespace CS_and_N4.ViewModels
                     Debug.WriteLine($"{counter}: {line}");
                     counter++;
                 }
+
+                Log.Add(new DialogueStruct(qResult.header + " " + query, qResult.data));
             }
         }
     }

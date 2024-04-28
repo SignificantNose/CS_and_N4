@@ -96,8 +96,15 @@ namespace CS_and_N4.Models
                 //           A1 OK ...
 
                 string[] data = qResponse.data;
-                if (qResponse.status && data[data.Length - 1].StartsWith($"${qResponse.header} OK")){ 
-                    result = $"AUTH error: {data[data.Length - 1]}";
+                if (qResponse.status)
+                {
+                    if (!(data[data.Length - 1].StartsWith($"{qResponse.header} OK"))) {
+                        status = false;
+                        result = $"AUTH error: {data[data.Length - 1]}";
+                    }
+                }
+                else {
+                    result = $"Error: {qResponse.header}";
                     status = false;
                 }
             }
