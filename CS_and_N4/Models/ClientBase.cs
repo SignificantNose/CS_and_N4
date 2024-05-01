@@ -11,6 +11,12 @@ using System.Threading.Tasks;
 
 namespace CS_and_N4.Models
 {
+
+    // QueryResult's status only indicates errors that were caught 
+    // during network communication process, i.e. it doesn't include
+    // possible errors related to a certain protocol implementation.
+    // Each protocol response, if received properly (meaning, with
+    // status being set to true), must be processed by the query maker
     public class QueryResult {
         public bool status;
         public string header;

@@ -112,6 +112,43 @@ namespace CS_and_N4.Models
         }
 
 
+
+        /// <summary>
+        /// Initiates end of session. Even if the error has occurred, it will still try to end the connection.
+        /// </summary>
+        /// <param name="exitMsg">Error message that had caused the caller to close the connection.</param>
+        /// <returns>Either error message provided by the caller, 
+        /// or (if the provided parameter is null) the result of closing the connection</returns>
+        public async Task<string?> InitiateQuitAsync(string? exitMsg = null) {
+            QueryResult qResult;
+            string? result = exitMsg;
+
+            // CLOSE command is not very relevant in this situation.
+            //string[] queries = ["CLOSE", "LOGOUT"];
+ 
+            qResult = await SmalltalkAsync("LOGOUT");
+            if (result == null)
+            {
+                if (!qResult.status)
+                {
+                    result = qResult.header;
+                }
+
+                else {
+                    // checking if BYE response is valid.
+                    // assuming that the response contains only 2 strings: BYE string and OK string
+                    if (!(qResult.data.Length == 2 && qResult.data[0].Contains("BYE") && qResult.data[1].Contains("OK"))) {
+                        result = "Exit error: invalid LOGOUT response";
+                    }
+                }
+            }
+            tagCounter = 0;
+            CloseConnection();
+            return result;
+        }
+
+        // this is basically the same as InitiateQuitAsync, 
+        // it just doesn't return any message.
         public async Task QuitSessionAsync() {
             await SmalltalkAsync("CLOSE");
             await SmalltalkAsync("LOGOUT");

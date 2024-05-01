@@ -27,7 +27,7 @@ namespace CS_and_N4.ViewModels
         public bool GlobalEnabler { get; set; }
 
 
-        public ReactiveCommand<Unit, Unit> QuitCommand { get; set; }
+        public ReactiveCommand<string?, string?> QuitCommand { get; set; }
         public ReactiveCommand<Unit, Unit> RefreshCommand { get; set; }
         public ReactiveCommand<Unit, Unit> PrevPageCommand { get; set; }
         public ReactiveCommand<Unit, Unit> NextPageCommand { get; set; }
@@ -104,6 +104,10 @@ namespace CS_and_N4.ViewModels
 
         public ObservableCollection<MailBox> MailBoxes { get; set; } = new ObservableCollection<MailBox>();
 
+        private void HandleError(string errorMsg) {
+            QuitCommand.Execute(errorMsg);                   
+        }
+
         public IMAPClientViewModel(IMAPClient client)
         {
             GlobalEnabler = true;
@@ -136,9 +140,11 @@ namespace CS_and_N4.ViewModels
             this.WhenAnyValue(x => x.ChosenLogItemIdx)
                 .Subscribe((logIdx) =>
                     {
-                    if (logIdx < Log.Count) {
+                        if (logIdx < Log.Count && logIdx >= 0)
+                        {
+                            SelectedMailIdx = -1;
                             DialogueStruct currLogElem = Log[logIdx];
-                            CurrentContent = "Query: "+currLogElem.Query + "\r\nResponse: " + currLogElem.Response;
+                            CurrentContent = "Query: " + currLogElem.Query + "\r\nResponse: " + currLogElem.Response;
                         }
                     }
                 );
@@ -151,20 +157,22 @@ namespace CS_and_N4.ViewModels
                     // WHAT??
                     if (GlobalEnabler && mailIdx >= 0 && mailIdx < CurrentMailList.Count && ActualPageIndex.HasValue)
                     {
+                        ChosenLogItemIdx = -1;
                         await ShowMailAsync(MailBoxes[SelectedMailboxIdx], ActualPageIndex.Value, mailIdx);
                     }
-
                 }
                 );
 
 
             IObservable<bool> globalEnabledObserver = this.WhenAnyValue(x => x.GlobalEnabler);
-            QuitCommand = ReactiveCommand.CreateFromTask(client.QuitSessionAsync, globalEnabledObserver);
+            QuitCommand = ReactiveCommand.CreateFromTask<string?, string?>(client.InitiateQuitAsync, globalEnabledObserver);
             RefreshCommand = ReactiveCommand.CreateFromTask(RefreshAsync, globalEnabledObserver);
             PrevPageCommand = ReactiveCommand.Create(PrevPageHandler, globalEnabledObserver);
             NextPageCommand = ReactiveCommand.Create(NextPageHandler, globalEnabledObserver);
 
             ActualPageIndex = null;
+            ChosenLogItemIdx = -1;
+            SelectedMailIdx = -1;
 
 
             // because the throttle is not UI-thread-related (?),
@@ -221,6 +229,7 @@ namespace CS_and_N4.ViewModels
                 if (!mb.Mail.ContainsKey(mailIdx))
                 {
                     // error
+                    HandleError("Implementation error: mail key not found in mail");
                 }
                 else {
                     if (mb.Mail[mailIdx].msgBody == null) {
@@ -239,8 +248,9 @@ namespace CS_and_N4.ViewModels
                     CurrentContent = $"Subject: {msg.msgHeader}\r\nDate: {msg.msgDate}\r\nBody:\r\n{msg.msgBody}";
                 }
             }
-            else { 
+            else {
                 // invalid idx
+                HandleError("Implementation error: invalid key for message");
             }
             
 
@@ -275,16 +285,13 @@ namespace CS_and_N4.ViewModels
                                 {
                                     amntOfMail = int.Parse(match.Groups[1].Value);
                                 }
-                                else
-                                {
-                                    // error: string of other type
-                                }
                                 break;
                             }
                         }
                         if (amntOfMail == -1)
                         {
                             // error: EXISTS was not found
+                            HandleError("Implementation error: string of type \"* NNN EXISTS\" expected. Other string received");
                         }
 
                         if (!(mb.MailCount != null && mb.MailCount == amntOfMail))
@@ -305,7 +312,7 @@ namespace CS_and_N4.ViewModels
                     }
                     else
                     {
-                        // error in response
+                        // error in response. already handled directly by the query maker
                     }
                     // find the IDs if they are not found
 
@@ -318,8 +325,6 @@ namespace CS_and_N4.ViewModels
                                         mb.Mail.Add(i, null);
                                     }*/
                 }
-
-
             }
 
             GlobalEnabler = true;
@@ -364,6 +369,7 @@ namespace CS_and_N4.ViewModels
                             if (mail.Length != endIdx - startIdx + 1)
                             {
                                 // error: some messages are not parsed
+                                HandleError("Error: some messages could not have been parsed properly");
                             }
                             else
                             {
@@ -394,6 +400,7 @@ namespace CS_and_N4.ViewModels
                 else
                 {
                     // unexpected error
+                    HandleError("Implementation error: Mailbox doesn't contain mail amount");
                 }
             }
 
@@ -412,6 +419,7 @@ namespace CS_and_N4.ViewModels
             if (!qResult.status)
             {
                 // error occurred
+                HandleError($"LIST failed: {qResult.header}");
                 return null;
             }
             else
@@ -419,31 +427,37 @@ namespace CS_and_N4.ViewModels
                 // get the current response as a string
                 List<MailBox> boxes = new List<MailBox>();
 
-                // update the combobox
-                foreach (string line in qResult.data)
+                int lastRowIdx = qResult.data.Length - 1;
+                if (qResult.data[lastRowIdx].StartsWith($"{qResult.header} OK"))
                 {
-                    if (line.StartsWith("* LIST "))
+                    // update the combobox
+                    foreach (string line in qResult.data)
                     {
-                        // current line is a mail box
-
-                        string pattern = @"\* LIST \(([^)]*)\) ""([^""]*)"" (.+)";
-                        Match match = Regex.Match(line, pattern);
-                        if (match.Success)
+                        if (line.StartsWith("* LIST "))
                         {
-                            string altName = match.Groups[1].Value;
-                            string Name = match.Groups[3].Value;
-                            boxes.Add(new MailBox(Name, altName));
+                            // current line is a mail box
+
+                            string pattern = @"\* LIST \(([^)]*)\) ""([^""]*)"" (.+)";
+                            Match match = Regex.Match(line, pattern);
+                            if (match.Success)
+                            {
+                                string altName = match.Groups[1].Value;
+                                string Name = match.Groups[3].Value;
+                                boxes.Add(new MailBox(Name, altName));
+                            }
+
+                            /*                        int startIdx, endIdx;
+                                                    startIdx = line.IndexOf('(');
+                                                    endIdx = line.IndexOf(')');
+                                                    string altName = line.Substring(startIdx+1, endIdx-startIdx-1);*/
+
                         }
-
-                        /*                        int startIdx, endIdx;
-                                                startIdx = line.IndexOf('(');
-                                                endIdx = line.IndexOf(')');
-                                                string altName = line.Substring(startIdx+1, endIdx-startIdx-1);*/
-
                     }
                 }
-
-
+                else
+                {
+                    HandleError(qResult.data[lastRowIdx]);
+                }
 
                 // add to console log
                 Log.Add(new DialogueStruct(qResult.header + " " + query, qResult.data));
@@ -460,41 +474,51 @@ namespace CS_and_N4.ViewModels
             if (!qResult.status)
             {
                 // error occurred
+                HandleError($"FETCH headers failed: {qResult.header}");
                 return [];
             }
             else
             {
                 string[] data = qResult.data;
-
                 List<MailMessage> mailMsgs = new List<MailMessage>();
-                string date = "";
-                string subject = "";
-                for (int i = 1; i < data.Length-1; i++) {
-                    string currString = data[i];
-                    if (currString == ")")
-                    {
-                        subject = MimeKit.Utils.Rfc2047.DecodeText(Encoding.UTF8.GetBytes(subject));
-                        date = MimeKit.Utils.Rfc2047.DecodeText(Encoding.UTF8.GetBytes(date));
-                        mailMsgs.Add(new MailMessage(subject, date));
 
-                        date = "";
-                        subject = "";
-                    }
-                    else {
-                        if (currString.StartsWith("Date: "))
+
+                int lastRowIdx = qResult.data.Length - 1;
+                if (qResult.data[lastRowIdx].StartsWith($"{qResult.header} OK"))
+                {
+                    string date = "";
+                    string subject = "";
+                    for (int i = 1; i < data.Length-1; i++) {
+                        string currString = data[i];
+                        if (currString == ")")
                         {
-                            date = currString.Substring(5);
+                            subject = MimeKit.Utils.Rfc2047.DecodeText(Encoding.UTF8.GetBytes(subject));
+                            date = MimeKit.Utils.Rfc2047.DecodeText(Encoding.UTF8.GetBytes(date));
+                            mailMsgs.Add(new MailMessage(subject, date));
+
+                            date = "";
+                            subject = "";
                         }
-                        else if (currString.StartsWith("Subject: ")) {
-                            subject = currString.Substring(8);
-                            // bad
-                            while (i+1 < data.Length-1 && !data[i + 1].StartsWith("Date: ") && !(data[i + 1] == "" && !(data[i+1]==")"))){
-                                currString = data[i+1];
-                                subject += currString;
-                                i++;
+                        else {
+                            if (currString.StartsWith("Date: "))
+                            {
+                                date = currString.Substring(5);
+                            }
+                            else if (currString.StartsWith("Subject: ")) {
+                                subject = currString.Substring(8);
+                                // bad
+                                while (i+1 < data.Length-1 && !data[i + 1].StartsWith("Date: ") && !(data[i + 1] == "" && !(data[i+1]==")"))){
+                                    currString = data[i+1];
+                                    subject += currString;
+                                    i++;
+                                }
                             }
                         }
                     }
+                }
+                else
+                {
+                    HandleError(qResult.data[lastRowIdx]);
                 }
 
        
@@ -517,6 +541,7 @@ namespace CS_and_N4.ViewModels
             if (!qResult.status)
             {
                 // error occurred
+                HandleError($"SEARCH failed: {qResult.header}");
                 return [];
             }
             else
@@ -552,18 +577,28 @@ namespace CS_and_N4.ViewModels
             if (!qResult.status)
             {
                 // error occurred
+                HandleError($"SELECT failed: {qResult.header}");
                 return [];
             }
             else {
-                string[] data = qResult.data;
-                int counter = 0;
-                foreach (string line in data) {
-                    Debug.WriteLine($"{counter}: {line}");
-                    counter++;
+                string[] data = [];
+                int lastRowIdx = qResult.data.Length - 1;
+                if (qResult.data[lastRowIdx].StartsWith($"{qResult.header} OK"))
+                {
+                    data = qResult.data;
+                    int counter = 0;
+                    foreach (string line in data) {
+                        Debug.WriteLine($"{counter}: {line}");
+                        counter++;
+                    }
+
+                    Log.Add(new DialogueStruct(qResult.header + " " + query, qResult.data));
+
                 }
-
-                Log.Add(new DialogueStruct(qResult.header + " " + query, qResult.data));
-
+                else
+                {
+                    HandleError(qResult.data[lastRowIdx]);
+                }
                 return data;
             }
         }
@@ -578,18 +613,26 @@ namespace CS_and_N4.ViewModels
             if (!qResult.status)
             {
                 // error occurred
+                HandleError($"FETCH for headers failed: {qResult.header}");
             }
             else
             {
-                string[] data = qResult.data;
-                // display data in a clickable listbox
-                int counter = 0;
-                foreach (string line in data) {
-                    Debug.WriteLine($"{counter}: {line}");
-                    counter++;
-                }
+                int lastRowIdx = qResult.data.Length - 1;
+                if (qResult.data[lastRowIdx].StartsWith($"{qResult.header} OK"))
+                {
+                    string[] data = qResult.data;
+                    // display data in a clickable listbox
+                    int counter = 0;
+                    foreach (string line in data) {
+                        Debug.WriteLine($"{counter}: {line}");
+                        counter++;
+                    }
 
-                Log.Add(new DialogueStruct(qResult.header + " " + query, qResult.data));
+                    Log.Add(new DialogueStruct(qResult.header + " " + query, qResult.data));
+                }
+                else {
+                    HandleError(qResult.data[lastRowIdx]);
+                }
             }
         }
 
@@ -601,16 +644,24 @@ namespace CS_and_N4.ViewModels
             if (!qResult.status)
             {
                 // error occurred
+                HandleError($"FETCH for msg failed: {qResult.header}");
                 return null;
             }
             else
             {
-                string response = "";
+                string? response = null;
                 int lastRowIdx = qResult.data.Length - 1;
-                for (int i = 1; i < lastRowIdx; i++) {
-                    response += MimeKit.Utils.Rfc2047.DecodeText(Encoding.UTF8.GetBytes(qResult.data[i])) + "\r\n";
+                if (qResult.data[lastRowIdx].StartsWith($"{qResult.header} OK"))
+                {
+                    response = "";
+                    for (int i = 1; i < lastRowIdx; i++) {
+                        response += MimeKit.Utils.Rfc2047.DecodeText(Encoding.UTF8.GetBytes(qResult.data[i])) + "\r\n";
+                    }
+                    Log.Add(new DialogueStruct(qResult.header + " " + query, qResult.data));
                 }
-                Log.Add(new DialogueStruct(qResult.header + " " + query, qResult.data));
+                else {
+                    HandleError(qResult.data[lastRowIdx]);
+                }
                 return response;
             }
         }

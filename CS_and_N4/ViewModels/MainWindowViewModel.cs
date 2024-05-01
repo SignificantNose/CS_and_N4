@@ -56,9 +56,10 @@ namespace CS_and_N4.ViewModels
             IMAPClientViewModel IMAPClient = new IMAPClientViewModel(client);
             // change SessionActive based on the IMAPClientViewModel changes
             IMAPClient.QuitCommand.Subscribe(
-                (_) => 
+                (errorMsg) => 
                 { 
                     CurrentViewModel = Authorization;
+                    Authorization.ErrorText = errorMsg == null ? "Session ended." : errorMsg;
                     SessionActive = false;
                 }
                 );
